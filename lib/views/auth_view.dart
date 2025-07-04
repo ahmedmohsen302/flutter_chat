@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+final _firebase = FirebaseAuth.instance;
 
 class AuthView extends StatefulWidget {
   const AuthView({super.key});
@@ -12,9 +15,49 @@ class _AuthViewState extends State<AuthView> {
   var _isLogin = true;
   var _email = '';
   var _password = '';
-  void _submitForm() {
+  void _submitForm() async {
     if (!_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
+      return;
+    }
+    _formKey.currentState!.save();
+
+    try {
+      if (_isLogin) {
+        await _firebase.signInWithEmailAndPassword(
+          email: _email,
+          password: _password,
+        );
+      } else {
+        await _firebase.createUserWithEmailAndPassword(
+          email: _email,
+          password: _password,
+        );
+      }
+    } on FirebaseAuthException catch (error) {
+      // Handle specific FirebaseAuthException errors
+      if (error.code == 'user-not-found') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No user found for that email.')),
+        );
+      } else if (error.code == 'wrong-password') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Wrong password provided for that user.')),
+        );
+      } else if (error.code == 'email-already-in-use') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('The account already exists for that email.')),
+        );
+      } else if (error.code == 'invalid-email') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('The email address is not valid.')),
+        );
+      } else {
+        // Handle other errors
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: ${error.message}')),
+        );
+      }
+      return;
     }
   }
 
@@ -59,7 +102,7 @@ class _AuthViewState extends State<AuthView> {
                             textCapitalization: TextCapitalization.none,
                             validator: (value) {
                               if (value == null ||
-                                  value.isEmpty ||
+                                  value.trim().isEmpty ||
                                   !value.contains('@')) {
                                 return 'Please enter a valid email address.';
                               }
@@ -79,7 +122,7 @@ class _AuthViewState extends State<AuthView> {
                             validator: (value) {
                               if (value == null ||
                                   value.isEmpty ||
-                                  value.length < 6) {
+                                  value.trim().length < 6) {
                                 return 'Password must be at least 6 characters long.';
                               }
                               return null;
@@ -97,7 +140,7 @@ class _AuthViewState extends State<AuthView> {
                               ),
                               backgroundColor: Theme.of(
                                 context,
-                              ).colorScheme.primaryContainer,
+                              ).colorScheme.primary,
                               foregroundColor: Colors.white,
                             ),
                             onPressed: _submitForm,
