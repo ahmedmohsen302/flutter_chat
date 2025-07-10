@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -15,6 +16,8 @@ class _AuthViewState extends State<AuthView> {
   var _isLogin = true;
   var _email = '';
   var _password = '';
+  var _userName = '';
+  bool isAuthenticating = false;
   void _submitForm() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -22,16 +25,23 @@ class _AuthViewState extends State<AuthView> {
     _formKey.currentState!.save();
 
     try {
+      setState(() {
+        isAuthenticating = true;
+      });
       if (_isLogin) {
         await _firebase.signInWithEmailAndPassword(
           email: _email,
           password: _password,
         );
       } else {
-        await _firebase.createUserWithEmailAndPassword(
+        final userCredential = await _firebase.createUserWithEmailAndPassword(
           email: _email,
           password: _password,
         );
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set({'username': _userName, 'email': _email});
       }
     } on FirebaseAuthException catch (error) {
       // Handle specific FirebaseAuthException errors
@@ -57,6 +67,9 @@ class _AuthViewState extends State<AuthView> {
           SnackBar(content: Text('An error occurred: ${error.message}')),
         );
       }
+      setState(() {
+        isAuthenticating = false;
+      });
       return;
     }
   }
@@ -95,7 +108,7 @@ class _AuthViewState extends State<AuthView> {
                           TextFormField(
                             decoration: const InputDecoration(
                               labelText: 'Email',
-                              prefixIcon: Icon(Icons.email),
+                              prefixIcon: Icon(Icons.email_outlined),
                             ),
                             keyboardType: TextInputType.emailAddress,
                             autocorrect: false,
@@ -112,11 +125,31 @@ class _AuthViewState extends State<AuthView> {
                               _email = value ?? '';
                             },
                           ),
+                          if (!_isLogin) const SizedBox(height: 10),
+                          if (!_isLogin)
+                            TextFormField(
+                              decoration: const InputDecoration(
+                                labelText: 'User name',
+                                prefixIcon: Icon(Icons.person_2_outlined),
+                              ),
+                              autocorrect: false,
+                              validator: (value) {
+                                if (value == null ||
+                                    value.isEmpty ||
+                                    value.trim().length < 6) {
+                                  return 'Please enter a valid user name';
+                                }
+                                return null;
+                              },
+                              onSaved: (value) {
+                                _userName = value!;
+                              },
+                            ),
                           const SizedBox(height: 10),
                           TextFormField(
                             decoration: const InputDecoration(
                               labelText: 'Password',
-                              prefixIcon: Icon(Icons.lock),
+                              prefixIcon: Icon(Icons.lock_outline),
                             ),
                             obscureText: true,
                             validator: (value) {
@@ -131,21 +164,23 @@ class _AuthViewState extends State<AuthView> {
                               _password = value ?? '';
                             },
                           ),
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              backgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.primary,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: _submitForm,
-                            child: Text(_isLogin ? 'Login' : 'Sign Up'),
-                          ),
+                          const SizedBox(height: 20),
+                          isAuthenticating
+                              ? Center(child: CircularProgressIndicator())
+                              : ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(50),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: _submitForm,
+                                  child: Text(_isLogin ? 'Login' : 'Sign Up'),
+                                ),
                           TextButton(
                             onPressed: () {
                               setState(() {
